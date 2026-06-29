@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>How Did I Get Here?</title>
+    <link rel="stylesheet" href="sidepanel.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Research trail</p>
+          <h1>How Did I Get Here?</h1>
+        </div>
+        <button id="refreshButton" class="icon-button" title="Refresh topics" aria-label="Refresh topics">
+          <span aria-hidden="true">Refresh</span>
+        </button>
+      </header>
+
+      <section id="consentPanel" class="consent-panel hidden" aria-live="polite">
+        <h2>AI grouping needs permission</h2>
+        <p>Pages are stored locally. If enabled, titles, domains, safe snippets and relationship hints are sent for topic grouping. Sensitive categories and blacklisted domains are skipped.</p>
+        <div class="button-row">
+          <button id="acceptAiButton" class="primary-button">Enable AI grouping</button>
+          <button id="declineAiButton" class="secondary-button">Local only</button>
+        </div>
+      </section>
+
+      <section class="settings-strip">
+        <label class="toggle-row">
+          <input id="aiToggle" type="checkbox">
+          <span>AI grouping</span>
+        </label>
+        <button id="settingsButton" class="text-button">Privacy</button>
+      </section>
+
+      <section id="settingsPanel" class="settings-panel hidden">
+        <label for="blacklistInput">Domain blacklist</label>
+        <textarea id="blacklistInput" rows="3" placeholder="mail.example.com&#10;bank.example"></textarea>
+        <button id="saveSettingsButton" class="secondary-button">Save privacy settings</button>
+      </section>
+
+      <section id="statusPanel" class="status-panel">Loading your research trail...</section>
+
+      <section id="topicsList" class="topics-list" aria-label="Research topics"></section>
+
+      <section id="topicDetail" class="topic-detail hidden" aria-label="Topic detail"></section>
+    </main>
+    <script src="src/core.js"></script>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

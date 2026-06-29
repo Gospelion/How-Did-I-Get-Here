@@ -1,0 +1,10 @@
+{
+  "name": "how-did-i-get-here-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome MV3 MVP for recording browser research trails.",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  }
+}
