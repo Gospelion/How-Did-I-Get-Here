@@ -5,6 +5,7 @@
     const mainText = getReadableText().slice(0, 1600);
     const readingProgress = getReadingProgress();
     const tags = getMetaKeywords();
+    const contentMetrics = getContentMetrics();
 
     return {
       url: location.href,
@@ -12,7 +13,8 @@
       referrerUrl: document.referrer || "",
       summary: selection || mainText,
       readingProgress,
-      tags
+      tags,
+      contentMetrics
     };
   }
 
@@ -49,25 +51,60 @@
       .slice(0, 8);
   }
 
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type === "REQUEST_PAGE_CONTEXT") {
-      sendResponse({ ok: true, payload: collectPageContext() });
-      return true;
+  function getContentMetrics() {
+    const readableText = getReadableText();
+    const words = readableText.match(/[\p{L}\p{N}]+/gu) || [];
+    const articleLike = Boolean(
+      document.querySelector("article")
+      || document.querySelector("main")
+      || document.querySelector('[role="main"]')
+    );
+
+    return {
+      wordCount: words.length,
+      mediaCount: document.querySelectorAll("img, video, audio, canvas, iframe").length,
+      linkCount: document.querySelectorAll("a[href]").length,
+      formControlCount: document.querySelectorAll("input, textarea, select, button").length,
+      articleLike
+    };
+  }
+
+  if (canUseRuntimeMessaging()) {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type === "REQUEST_PAGE_CONTEXT") {
+        sendResponse({ ok: true, payload: collectPageContext() });
+        return true;
+      }
+      return false;
+    });
+  }
+
+  function canUseRuntimeMessaging() {
+    return typeof chrome !== "undefined"
+      && Boolean(chrome.runtime)
+      && typeof chrome.runtime.sendMessage === "function";
+  }
+
+  function sendPageContext() {
+    if (!canUseRuntimeMessaging()) {
+      return;
     }
-    return false;
-  });
+
+    try {
+      chrome.runtime.sendMessage({
+        type: "PAGE_CONTEXT",
+        payload: collectPageContext()
+      }).catch(() => {});
+    } catch (_error) {
+      // The extension context can disappear while a page is unloading or after reload.
+    }
+  }
 
   window.addEventListener("pagehide", () => {
-    chrome.runtime.sendMessage({
-      type: "PAGE_CONTEXT",
-      payload: collectPageContext()
-    }).catch(() => {});
+    sendPageContext();
   });
 
   setTimeout(() => {
-    chrome.runtime.sendMessage({
-      type: "PAGE_CONTEXT",
-      payload: collectPageContext()
-    }).catch(() => {});
+    sendPageContext();
   }, 1200);
 })();

@@ -4,12 +4,15 @@ const {
   buildAiPayload,
   buildPageNode,
   deriveLocalTopics,
+  getExcludedAppCategory,
   getSensitiveCategory,
   inferEdgeType,
+  isLikelyResearchContent,
   makeEdge,
   mergeSettings,
   normalizeAiTopics,
   normalizeUrl,
+  sanitizeTopics,
   stableId
 } = globalThis.HDIGHCore;
 
@@ -20,7 +23,8 @@ const STORAGE_KEYS = {
   settings: "userSettings",
   tabPages: "tabPages",
   topicEdits: "topicEdits",
-  lastAiRunAt: "lastAiRunAt"
+  lastAiRunAt: "lastAiRunAt",
+  lastAiPageIds: "lastAiPageIds"
 };
 
 const AI_API_KEY = "sk-ws-H.RYXMIDM.HBtr.MEQCIDYJuUAG__LSUiWUsKy0yMdf4chYLZtxN7ks2liozihLAiBCG7nGVuzKsQgRBbj1jm37wz06lLTorusVsdh3Bk7rew";
@@ -179,6 +183,13 @@ async function capturePageContext(tabId, tab, payload) {
   if (sensitiveCategory) {
     return { ok: true, skipped: true, reason: sensitiveCategory };
   }
+  const excludedAppCategory = getExcludedAppCategory(url);
+  if (excludedAppCategory) {
+    return { ok: true, skipped: true, reason: excludedAppCategory };
+  }
+  if (!isLikelyResearchContent(url, payload, settings)) {
+    return { ok: true, skipped: true, reason: "low_content" };
+  }
 
   const existingNode = state.nodes[stableId(url)];
   const node = buildPageNode({
@@ -187,6 +198,7 @@ async function capturePageContext(tabId, tab, payload) {
     summary: payload.summary || "",
     tags: payload.tags || [],
     readingProgress: payload.readingProgress || 0,
+    contentMetrics: payload.contentMetrics || null,
     timestamp: Date.now()
   }, existingNode);
 
@@ -203,7 +215,7 @@ async function capturePageContext(tabId, tab, payload) {
   });
   const sourceUrl = openerUrl || payload.referrerUrl || "";
   const sourceId = sourceUrl ? stableId(normalizeUrl(sourceUrl)) : "";
-  if (sourceUrl && !state.nodes[sourceId] && !getSensitiveCategory(sourceUrl, settings)) {
+  if (sourceUrl && !state.nodes[sourceId] && !getSensitiveCategory(sourceUrl, settings) && !getExcludedAppCategory(sourceUrl)) {
     state.nodes[sourceId] = buildPageNode({
       url: sourceUrl,
       title: new URL(sourceUrl).hostname,
@@ -236,18 +248,21 @@ async function getState() {
     STORAGE_KEYS.settings,
     STORAGE_KEYS.tabPages,
     STORAGE_KEYS.topicEdits,
-    STORAGE_KEYS.lastAiRunAt
+    STORAGE_KEYS.lastAiRunAt,
+    STORAGE_KEYS.lastAiPageIds
   ]);
+  const nodes = raw[STORAGE_KEYS.nodes] || {};
 
   return {
     ok: true,
-    nodes: raw[STORAGE_KEYS.nodes] || {},
+    nodes,
     edges: raw[STORAGE_KEYS.edges] || [],
-    topics: raw[STORAGE_KEYS.topics] || [],
+    topics: sanitizeTopics(raw[STORAGE_KEYS.topics] || [], { allowedPageIds: Object.keys(nodes) }),
     settings: mergeSettings(raw[STORAGE_KEYS.settings]),
     tabPages: raw[STORAGE_KEYS.tabPages] || {},
     topicEdits: normalizeTopicEdits(raw[STORAGE_KEYS.topicEdits]),
-    lastAiRunAt: raw[STORAGE_KEYS.lastAiRunAt] || 0
+    lastAiRunAt: raw[STORAGE_KEYS.lastAiRunAt] || 0,
+    lastAiPageIds: Array.isArray(raw[STORAGE_KEYS.lastAiPageIds]) ? raw[STORAGE_KEYS.lastAiPageIds] : []
   };
 }
 
@@ -270,22 +285,48 @@ function scheduleClustering(delay = 2500) {
 
 async function runClustering({ forceAi = false } = {}) {
   const state = await getState();
-  const localTopics = deriveLocalTopics(state.nodes, state.edges);
-  let topics = localTopics;
+  const eligibleNodes = getTopicEligibleNodes(state.nodes, state.settings);
+  const eligibleNodeIds = new Set(Object.keys(eligibleNodes));
+  const eligibleEdges = getTopicEligibleEdges(state.edges, eligibleNodeIds);
+  const localClusteringEnabled = Boolean(state.settings.localClusteringEnabled);
+  const localTopics = localClusteringEnabled ? deriveLocalTopics(eligibleNodes, eligibleEdges) : [];
+  let topics = filterTopicsToEligiblePages(state.topics.length ? state.topics : localTopics, eligibleNodeIds);
+  const aiRefreshIntervalMs = Number(state.settings.aiRefreshIntervalMinutes || 10) * 60 * 1000;
 
   const canUseAi = state.settings.aiConsentGranted
     && state.settings.aiEnabled
     && AI_API_KEY
-    && (forceAi || Date.now() - state.lastAiRunAt > 10 * 60 * 1000);
+    && (forceAi || Date.now() - state.lastAiRunAt > aiRefreshIntervalMs);
+  let aiUsed = false;
 
   if (canUseAi) {
-    const aiTopics = await requestAiTopics(state);
-    if (aiTopics.length) {
-      topics = aiTopics;
+    const aiScope = getAiScope(state);
+    const hasEnoughAiPages = aiScope.pageIds.length >= Number(state.settings.minTopicPages || 2);
+    let aiTopics = [];
+    if (hasEnoughAiPages) {
+      try {
+        aiTopics = await requestAiTopics(state, aiScope.pageIds);
+        aiUsed = true;
+      } catch (error) {
+        console.warn("AI clustering skipped.", error);
+      }
     }
-    await chrome.storage.local.set({ [STORAGE_KEYS.lastAiRunAt]: Date.now() });
+    if (aiTopics.length) {
+      topics = mergeScopedTopics(state.topics, aiTopics, aiScope.pageIds);
+    } else if (!state.topics.length && localClusteringEnabled) {
+      topics = localTopics;
+    }
+    if (aiTopics.length) {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.lastAiRunAt]: Date.now(),
+        [STORAGE_KEYS.lastAiPageIds]: Array.from(new Set([...state.lastAiPageIds, ...aiScope.pageIds]))
+      });
+    }
+  } else if ((!state.settings.aiEnabled || !state.settings.aiConsentGranted) && localClusteringEnabled) {
+    topics = localTopics;
   }
 
+  topics = filterTopicsToEligiblePages(topics, eligibleNodeIds);
   topics = applyTopicEdits(topics, state.topicEdits);
 
   const nodesWithMembership = applyTopicMembership(state.nodes, topics);
@@ -296,13 +337,51 @@ async function runClustering({ forceAi = false } = {}) {
     [STORAGE_KEYS.edges]: edgesWithTopics,
     [STORAGE_KEYS.topics]: topics
   });
-  return { ok: true, topics, aiUsed: canUseAi };
+  return { ok: true, topics, aiUsed };
 }
 
-async function requestAiTopics(state) {
-  const payload = buildAiPayload(state.nodes, state.edges, state.settings);
+async function requestAiTopics(state, pageIds) {
+  const payload = buildAiPayload(state.nodes, state.edges, state.settings, {
+    pageIds,
+    language: getSystemLanguage()
+  });
   if (!payload.pages.length) {
     return [];
+  }
+
+  let response = await postAiTopicRequest(payload, true);
+  if (response.status === 400) {
+    response = await postAiTopicRequest(payload, false);
+  }
+
+  if (!response.ok) {
+    const errorText = await safeReadResponseText(response);
+    throw new Error(`AI request failed: ${response.status}${errorText ? ` ${errorText}` : ""}`);
+  }
+
+  const data = await response.json();
+  const text = data.choices?.[0]?.message?.content || "{}";
+  const parsed = parseAiJson(text);
+  return normalizeAiTopics(parsed.topics, state.nodes);
+}
+
+async function postAiTopicRequest(payload, useJsonResponseFormat) {
+  const body = {
+    model: AI_MODEL,
+    messages: [
+      {
+        role: "system",
+        content: "Group browsing pages into research topics. Return only valid JSON with a topics array. Each topic has id, name, summary, pageIds, corePageIds, todoPageIds, confidence. Use only supplied page ids. Only create topics with at least two pages. pageIds must contain unique ids. corePageIds and todoPageIds must be unique subsets of pageIds and must not overlap. confidence is a 0 to 1 score based on page relatedness and browsing engagement. Use the payload language for all user-visible generated text, especially each topic name and summary."
+      },
+      {
+        role: "user",
+        content: JSON.stringify(payload)
+      }
+    ]
+  };
+
+  if (useJsonResponseFormat) {
+    body.response_format = { type: "json_object" };
   }
 
   const response = await fetch(AI_ENDPOINT, {
@@ -311,30 +390,83 @@ async function requestAiTopics(state) {
       "Authorization": `Bearer ${AI_API_KEY}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      model: AI_MODEL,
-      messages: [
-        {
-          role: "system",
-          content: "Group browsing pages into research topics. Return only valid JSON with a topics array. Each topic has id, name, summary, pageIds, corePageIds, todoPageIds, confidence. Use only supplied page ids. Only create topics with at least two pages. confidence is a 0 to 1 score based on page relatedness and browsing engagement."
-        },
-        {
-          role: "user",
-          content: JSON.stringify(payload)
-        }
-      ],
-      response_format: { type: "json_object" }
-    })
+    body: JSON.stringify(body)
   });
 
-  if (!response.ok) {
-    throw new Error(`AI request failed: ${response.status}`);
+  return response;
+}
+
+function getSystemLanguage() {
+  return globalThis.chrome?.i18n?.getUILanguage?.() || globalThis.navigator?.language || "";
+}
+
+async function safeReadResponseText(response) {
+  try {
+    return (await response.text()).slice(0, 500);
+  } catch (_error) {
+    return "";
+  }
+}
+
+function parseAiJson(text) {
+  const raw = String(text || "{}").trim();
+  try {
+    return JSON.parse(raw);
+  } catch (_error) {
+    const match = raw.match(/\{[\s\S]*\}/);
+    return match ? JSON.parse(match[0]) : {};
+  }
+}
+
+function getAiScope(state) {
+  const previouslySent = new Set(state.lastAiPageIds || []);
+  const dirtyPageIds = Object.values(state.nodes || {})
+    .filter((node) => !node.sensitiveSkipped && !getSensitiveCategory(node.url, state.settings) && !getExcludedAppCategory(node.url))
+    .filter((node) => !previouslySent.has(node.id) || (state.lastAiRunAt && (node.lastVisitTime || 0) > state.lastAiRunAt))
+    .map((node) => node.id);
+
+  if (!state.topics.length) {
+    return { pageIds: dirtyPageIds };
   }
 
-  const data = await response.json();
-  const text = data.choices?.[0]?.message?.content || "{}";
-  const parsed = JSON.parse(text);
-  return normalizeAiTopics(parsed.topics, state.nodes);
+  const dirtySet = new Set(dirtyPageIds);
+  const scopedPageIds = new Set(dirtyPageIds);
+  for (const topic of state.topics) {
+    const topicPageIds = topic.pageIds || [];
+    if (topicPageIds.some((id) => dirtySet.has(id))) {
+      topicPageIds.forEach((id) => scopedPageIds.add(id));
+    }
+  }
+
+  return { pageIds: Array.from(scopedPageIds) };
+}
+
+function mergeScopedTopics(existingTopics, aiTopics, scopedPageIds) {
+  const scoped = new Set(scopedPageIds || []);
+  const untouchedTopics = (existingTopics || []).filter((topic) => (
+    !(topic.pageIds || []).some((pageId) => scoped.has(pageId))
+  ));
+  return [...untouchedTopics, ...aiTopics].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+}
+
+function getTopicEligibleNodes(nodes, settings) {
+  return Object.fromEntries(Object.entries(nodes || {}).filter(([_id, node]) => (
+    node?.url
+    && !node.sensitiveSkipped
+    && !getSensitiveCategory(node.url, settings)
+    && !getExcludedAppCategory(node.url)
+  )));
+}
+
+function getTopicEligibleEdges(edges, eligibleNodeIds) {
+  return (edges || []).filter((edge) => (
+    eligibleNodeIds.has(edge.fromPageId)
+    && eligibleNodeIds.has(edge.toPageId)
+  ));
+}
+
+function filterTopicsToEligiblePages(topics, eligibleNodeIds) {
+  return sanitizeTopics(topics, { allowedPageIds: eligibleNodeIds });
 }
 
 function applyTopicMembership(nodes, topics) {
@@ -394,16 +526,12 @@ function applyTopicEdits(topics, topicEdits) {
     .filter((topic) => !deletedTopicIds.has(topic.id))
     .map((topic) => {
       const removedPageIds = new Set(edits.removedPagesByTopicId[topic.id] || []);
-      const pageIds = (topic.pageIds || []).filter((id) => !removedPageIds.has(id));
-      const pageIdSet = new Set(pageIds);
-      return {
+      return sanitizeTopics([{
         ...topic,
-        pageIds,
-        corePageIds: (topic.corePageIds || []).filter((id) => pageIdSet.has(id)),
-        todoPageIds: (topic.todoPageIds || []).filter((id) => pageIdSet.has(id))
-      };
+        pageIds: (topic.pageIds || []).filter((id) => !removedPageIds.has(id))
+      }])[0];
     })
-    .filter((topic) => topic.pageIds.length >= 2);
+    .filter(Boolean);
 }
 
 async function deleteTopic(topicId) {

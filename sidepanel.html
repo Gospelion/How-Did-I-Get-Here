@@ -13,9 +13,15 @@
           <p class="eyebrow">Research trail</p>
           <h1>How Did I Get Here?</h1>
         </div>
-        <button id="refreshButton" class="icon-button" title="Refresh topics" aria-label="Refresh topics">
-          <span aria-hidden="true">Refresh</span>
-        </button>
+        <div class="topbar-actions">
+          <div class="refresh-meta" aria-live="polite">
+            <span id="refreshCooldownText">AI refresh status loading...</span>
+            <span id="refreshIntervalText">Default AI interval: 10 minutes</span>
+          </div>
+          <button id="refreshButton" class="icon-button" title="Refresh topics" aria-label="Refresh topics">
+            <span aria-hidden="true">Refresh</span>
+          </button>
+        </div>
       </header>
 
       <section id="consentPanel" class="consent-panel hidden" aria-live="polite">
@@ -28,17 +34,37 @@
       </section>
 
       <section class="settings-strip">
-        <label class="toggle-row">
-          <input id="aiToggle" type="checkbox">
-          <span>AI grouping</span>
-        </label>
-        <button id="settingsButton" class="text-button">Privacy</button>
+        <div class="toggle-group">
+          <label class="toggle-row">
+            <input id="aiToggle" type="checkbox">
+            <span>AI grouping</span>
+          </label>
+          <label class="toggle-row">
+            <input id="localToggle" type="checkbox">
+            <span>Local grouping</span>
+          </label>
+        </div>
+        <button id="settingsButton" class="text-button">Blacklist</button>
       </section>
 
-      <section id="settingsPanel" class="settings-panel hidden">
-        <label for="blacklistInput">Domain blacklist</label>
-        <textarea id="blacklistInput" rows="3" placeholder="mail.example.com&#10;bank.example"></textarea>
-        <button id="saveSettingsButton" class="secondary-button">Save privacy settings</button>
+      <section id="settingsPanel" class="settings-panel hidden" aria-label="Blacklist">
+        <div class="detail-header">
+          <div>
+            <p class="eyebrow">Domain controls</p>
+            <h1>Blacklist</h1>
+          </div>
+          <button class="icon-button" id="closeBlacklistButton" aria-label="Close blacklist" title="Close">Close</button>
+        </div>
+        <div id="blacklistList" class="blacklist-list"></div>
+        <div id="blacklistForm" class="blacklist-form hidden">
+          <label for="blacklistInput">Domain</label>
+          <input id="blacklistInput" type="text" placeholder="example.com">
+          <div class="button-row">
+            <button id="saveSettingsButton" class="secondary-button">Save</button>
+            <button id="cancelBlacklistButton" class="text-button">Cancel</button>
+          </div>
+        </div>
+        <button id="addBlacklistButton" class="secondary-button full-width-button">Add new blacklist</button>
       </section>
 
       <section id="statusPanel" class="status-panel">Loading your research trail...</section>

@@ -45,15 +45,15 @@
 
 ## 测试隐私和黑名单
 
-1. 在 Side Panel 点击 `Privacy`。
-2. 在 `Domain blacklist` 输入一个域名，例如：
+1. 在 Side Panel 点击 `Blacklist`。
+2. 点击 `Add new blacklist`，输入一个域名，例如：
 
 ```text
 stripe.com
 mail.google.com
 ```
 
-3. 点击 `Save privacy settings`。
+3. 点击 `Save`。
 4. 再访问这些域名，确认它们不会进入主题树，也不会进入 AI 聚类 payload。
 
 ## AI 配置
