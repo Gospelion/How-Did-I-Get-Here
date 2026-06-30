@@ -9,20 +9,86 @@
   <body>
     <main class="app-shell">
       <header class="topbar">
-        <div>
+        <div class="brand-mark" aria-hidden="true">
+          <span></span>
+        </div>
+        <div class="title-block">
           <p class="eyebrow">Research trail</p>
           <h1>How Did I Get Here?</h1>
         </div>
-        <div class="topbar-actions">
-          <div class="refresh-meta" aria-live="polite">
-            <span id="refreshCooldownText">AI refresh status loading...</span>
-            <span id="refreshIntervalText">Default AI interval: 10 minutes</span>
-          </div>
-          <button id="refreshButton" class="icon-button" title="Refresh topics" aria-label="Refresh topics">
-            <span aria-hidden="true">Refresh</span>
-          </button>
-        </div>
+        <button class="menu-button" type="button" aria-label="More options">
+          <span aria-hidden="true">⋮</span>
+        </button>
       </header>
+
+      <section class="refresh-strip" aria-label="AI refresh summary">
+        <div class="soft-icon" aria-hidden="true">✦</div>
+        <div class="refresh-meta" aria-live="polite">
+          <span id="refreshCooldownText">AI refresh status loading...</span>
+          <span id="refreshIntervalText">Default AI interval: 10 minutes</span>
+        </div>
+        <button id="refreshButton" class="icon-button" title="Refresh topics" aria-label="Refresh topics">
+          <span class="button-icon" aria-hidden="true">↻</span>
+          <span>Refresh</span>
+        </button>
+      </section>
+
+      <section class="settings-strip">
+        <div class="toggle-cell">
+          <span class="line-icon" aria-hidden="true">◌</span>
+          <label class="toggle-row">
+            <span>AI grouping</span>
+            <input id="aiToggle" type="checkbox">
+          </label>
+        </div>
+        <div class="strip-divider" aria-hidden="true"></div>
+        <div class="toggle-cell">
+          <span class="line-icon" aria-hidden="true">□</span>
+          <label class="toggle-row">
+            <span>Local grouping</span>
+            <input id="localToggle" type="checkbox">
+          </label>
+        </div>
+        <div class="strip-divider" aria-hidden="true"></div>
+        <button id="settingsButton" class="secondary-button blacklist-button">
+          <span class="button-icon" aria-hidden="true">⊘</span>
+          <span>Blacklist</span>
+        </button>
+      </section>
+
+      <section id="statusPanel" class="stats-strip" aria-label="Research trail stats">
+        <div class="stat-item">
+          <span class="stat-icon" aria-hidden="true">▤</span>
+          <div>
+            <strong id="processedPagesCount">0</strong>
+            <span>Pages processed</span>
+          </div>
+        </div>
+        <div class="stat-divider" aria-hidden="true"></div>
+        <div class="stat-item">
+          <span class="stat-icon" aria-hidden="true">◇</span>
+          <div>
+            <strong id="topicsFoundCount">0</strong>
+            <span>Topics found</span>
+          </div>
+        </div>
+        <div class="stat-divider" aria-hidden="true"></div>
+        <div class="stat-item">
+          <span class="stat-icon" aria-hidden="true">◉</span>
+          <div>
+            <strong id="averageConfidenceText">0%</strong>
+            <span>Avg. confidence</span>
+          </div>
+        </div>
+        <div class="stat-divider" aria-hidden="true"></div>
+        <div class="stat-item">
+          <span class="stat-icon" aria-hidden="true">◷</span>
+          <div>
+            <strong id="lastUpdatedText">Today</strong>
+            <span>Last updated</span>
+          </div>
+        </div>
+      </section>
 
       <section id="consentPanel" class="consent-panel hidden" aria-live="polite">
         <h2>AI grouping needs permission</h2>
@@ -31,20 +97,6 @@
           <button id="acceptAiButton" class="primary-button">Enable AI grouping</button>
           <button id="declineAiButton" class="secondary-button">Local only</button>
         </div>
-      </section>
-
-      <section class="settings-strip">
-        <div class="toggle-group">
-          <label class="toggle-row">
-            <input id="aiToggle" type="checkbox">
-            <span>AI grouping</span>
-          </label>
-          <label class="toggle-row">
-            <input id="localToggle" type="checkbox">
-            <span>Local grouping</span>
-          </label>
-        </div>
-        <button id="settingsButton" class="text-button">Blacklist</button>
       </section>
 
       <section id="settingsPanel" class="settings-panel hidden" aria-label="Blacklist">
@@ -67,11 +119,16 @@
         <button id="addBlacklistButton" class="secondary-button full-width-button">Add new blacklist</button>
       </section>
 
-      <section id="statusPanel" class="status-panel">Loading your research trail...</section>
+      <section id="statusMessage" class="status-message" aria-live="polite">Loading your research trail...</section>
 
       <section id="topicsList" class="topics-list" aria-label="Research topics"></section>
 
       <section id="topicDetail" class="topic-detail hidden" aria-label="Topic detail"></section>
+
+      <footer class="footer-note">
+        <span><span aria-hidden="true">▱</span> All data is stored locally on your device.</span>
+        <a href="https://github.com/" target="_blank" rel="noreferrer">Learn more <span aria-hidden="true">↗</span></a>
+      </footer>
     </main>
     <script src="src/core.js"></script>
     <script src="sidepanel.js"></script>
