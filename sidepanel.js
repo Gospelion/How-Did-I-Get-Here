@@ -186,8 +186,8 @@ function renderTopics() {
     return;
   }
 
-  if (!expandedTopicId || !topics.some((topic) => topic.id === expandedTopicId)) {
-    expandedTopicId = topics[0].id;
+  if (expandedTopicId && !topics.some((topic) => topic.id === expandedTopicId)) {
+    expandedTopicId = "";
   }
 
   setStatus(`${topics.length} research ${topics.length === 1 ? "topic" : "topics"} from ${nodeCount} recorded pages.`);
@@ -627,14 +627,14 @@ function renderTopicCard(topic, index) {
         </div>
         <div class="topic-controls">
           <span class="count-pill">${topic.pageIds.length} pages</span>
-          <span class="chevron" aria-hidden="true">${expanded ? "^" : "⌄"}</span>
+          <span class="chevron ${expanded ? "is-open" : ""}" aria-hidden="true"></span>
           ${isConfirmingDelete ? `
             <div class="delete-confirm-popover" role="alertdialog" aria-label="Confirm delete topic">
               <span>Confirm delete?</span>
               <button class="danger-button compact-button" data-confirm-delete-topic-id="${escapeHtml(topic.id)}">Confirm</button>
               <button class="secondary-button compact-button" data-cancel-delete-topic-id="${escapeHtml(topic.id)}">Cancel</button>
             </div>
-          ` : `<button class="danger-button compact-button icon-only-button" data-delete-topic-id="${escapeHtml(topic.id)}" aria-label="Delete topic">⌫</button>`}
+          ` : `<button class="danger-button compact-button icon-only-button" data-delete-topic-id="${escapeHtml(topic.id)}" aria-label="Delete topic"><span aria-hidden="true"></span></button>`}
         </div>
       </div>
       <div class="topic-date"><span aria-hidden="true">▣</span>${updated}</div>
@@ -772,7 +772,7 @@ function getTopicTags(topic, pageGroups) {
   const pages = [...pageGroups.corePages, ...pageGroups.todoPages, ...pageGroups.otherPages];
   pages.forEach((page) => {
     (page.tags || []).forEach((tag) => {
-      const normalized = String(tag || "").trim();
+      const normalized = normalizeTagLabel(tag);
       if (normalized && !seen.has(normalized)) {
         seen.add(normalized);
         tags.push(normalized);
@@ -785,10 +785,23 @@ function getTopicTags(topic, pageGroups) {
       .toLowerCase()
       .split(/[^a-z0-9]+/)
       .filter((part) => part.length > 2)
-      .slice(0, 5);
+      .slice(0, 5)
+      .map((tag) => normalizeTagLabel(tag))
+      .filter(Boolean);
   }
 
   return tags.slice(0, 5);
+}
+
+function normalizeTagLabel(value) {
+  const label = String(value || "")
+    .trim()
+    .replace(/[。！？.!?].*$/u, "")
+    .replace(/\s+/g, " ");
+  if (!label) {
+    return "";
+  }
+  return label.length > 18 ? `${label.slice(0, 17)}...` : label;
 }
 
 function renderRelationshipClues(topic) {
