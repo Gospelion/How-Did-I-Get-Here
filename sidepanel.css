@@ -727,6 +727,31 @@ h1 {
   line-height: 1;
 }
 
+#refreshButton .button-icon {
+  width: 18px;
+  height: 18px;
+}
+
+#refreshButton.is-loading .button-icon {
+  border: 2px solid rgba(36, 91, 157, 0.22);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  color: var(--accent-strong);
+  font-size: 0;
+  animation: refresh-spin 760ms linear infinite;
+}
+
+#refreshButton:disabled {
+  cursor: progress;
+  opacity: 0.78;
+}
+
+@keyframes refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .settings-strip {
   grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr) 1px auto;
   gap: 16px;
@@ -965,7 +990,7 @@ h1 {
   place-items: center;
   width: 34px;
   height: 34px;
-  border-color: rgba(255, 59, 48, 0.35);
+  border: 0;
   background: transparent;
   color: var(--danger);
   padding: 0;
@@ -1113,7 +1138,7 @@ h1 {
 
 .page-header {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 18px;
+  grid-template-columns: 28px minmax(0, 1fr) 24px 18px;
   align-items: center;
   gap: 10px;
 }
@@ -1144,6 +1169,57 @@ h1 {
 .external-link-icon {
   color: #7b7d82;
   font-size: 18px;
+}
+
+.page-remove-icon-button {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  color: #7b7d82;
+  padding: 0;
+}
+
+.page-remove-icon-button:hover,
+.page-remove-icon-button:focus-visible {
+  color: #7b7d82;
+}
+
+.page-remove-icon-button span,
+.icon-only-button span {
+  position: relative;
+  display: block;
+  width: 14px;
+  height: 14px;
+  color: currentColor;
+}
+
+.page-remove-icon-button span::before,
+.page-remove-icon-button span::after,
+.icon-only-button span::before,
+.icon-only-button span::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 1.7px;
+  border-radius: 999px;
+  background: currentColor;
+  transform-origin: center;
+}
+
+.page-remove-icon-button span::before,
+.icon-only-button span::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.page-remove-icon-button span::after,
+.icon-only-button span::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .tag-section,
@@ -1575,50 +1651,30 @@ h1 {
 
 .icon-only-button {
   position: relative;
-  border-color: rgba(255, 59, 48, 0.32);
-  background: rgba(255, 255, 255, 0.56);
-  color: var(--danger);
+  border: 0;
+  background: transparent;
+  color: #7b7d82;
 }
 
 .icon-only-button:hover,
 .icon-only-button:focus-visible {
-  background: #fff7f6;
-  border-color: rgba(255, 59, 48, 0.48);
+  background: transparent;
+  color: #7b7d82;
 }
 
 .icon-only-button span {
-  position: relative;
-  display: block;
-  width: 13px;
-  height: 14px;
-  border: 1.6px solid currentColor;
-  border-top: 0;
-  border-radius: 2px 2px 3px 3px;
+  width: 16px;
+  height: 16px;
 }
 
 .icon-only-button span::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: -5px;
-  width: 15px;
-  height: 5px;
-  border-top: 1.6px solid currentColor;
-  border-radius: 3px 3px 0 0;
-  transform: translateX(-50%);
+  width: 16px;
+  height: 1.7px;
 }
 
 .icon-only-button span::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 3px;
-  width: 1.5px;
-  height: 7px;
-  background: currentColor;
-  box-shadow: -4px 0 0 currentColor, 4px 0 0 currentColor;
-  transform: translateX(-50%);
-  opacity: 0.85;
+  width: 16px;
+  height: 1.7px;
 }
 
 @media (max-width: 640px) {
@@ -1632,5 +1688,6 @@ h1 {
   *::before,
   *::after {
     transition: none !important;
+    animation: none !important;
   }
 }

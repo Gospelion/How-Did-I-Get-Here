@@ -23,6 +23,7 @@ Project-level instructions and durable memory for Codex agents working in this r
 - Local topic clustering is controlled by `settings.localClusteringEnabled` and defaults to off, so failed/skipped AI refreshes should preserve existing topics instead of silently regenerating local topics.
 - Research-content filtering rules, including SaaS app exclusions and readability heuristics, live in `src/core.js`.
 - Captured page titles are normalized in `src/core.js` to remove site-brand wrappers before storage, local clustering, and AI payload generation.
+- Topic membership sanitization in `src/core.js` deduplicates pages by normalized title within each topic, keeping the first occurrence.
 
 ## Conventions
 

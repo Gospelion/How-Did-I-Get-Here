@@ -162,6 +162,26 @@ test("deduplicates AI topic page memberships", () => {
   assert.deepEqual(topics[0].todoPageIds, [second.id]);
 });
 
+test("deduplicates topic page memberships by title", () => {
+  const first = core.buildPageNode({ url: "https://example.com/a", title: "Same Article" });
+  const second = core.buildPageNode({ url: "https://example.com/b", title: "Same   Article" });
+  const third = core.buildPageNode({ url: "https://example.com/c", title: "Another Article" });
+  const nodes = { [first.id]: first, [second.id]: second, [third.id]: third };
+  const topics = core.normalizeAiTopics([
+    {
+      name: "Articles",
+      pageIds: [first.id, second.id, third.id],
+      corePageIds: [second.id, first.id],
+      todoPageIds: [third.id],
+      confidence: 0.9
+    }
+  ], nodes);
+
+  assert.deepEqual(topics[0].pageIds, [first.id, third.id]);
+  assert.deepEqual(topics[0].corePageIds, [first.id]);
+  assert.deepEqual(topics[0].todoPageIds, [third.id]);
+});
+
 test("sanitizes topic memberships without expanding pageIds", () => {
   const first = core.buildPageNode({ url: "https://example.com/a", title: "Example A" });
   const second = core.buildPageNode({ url: "https://example.com/b", title: "Example B" });

@@ -257,7 +257,7 @@ async function getState() {
     ok: true,
     nodes,
     edges: raw[STORAGE_KEYS.edges] || [],
-    topics: sanitizeTopics(raw[STORAGE_KEYS.topics] || [], { allowedPageIds: Object.keys(nodes) }),
+    topics: sanitizeTopics(raw[STORAGE_KEYS.topics] || [], { allowedPageIds: Object.keys(nodes), nodes }),
     settings: mergeSettings(raw[STORAGE_KEYS.settings]),
     tabPages: raw[STORAGE_KEYS.tabPages] || {},
     topicEdits: normalizeTopicEdits(raw[STORAGE_KEYS.topicEdits]),
@@ -290,7 +290,7 @@ async function runClustering({ forceAi = false } = {}) {
   const eligibleEdges = getTopicEligibleEdges(state.edges, eligibleNodeIds);
   const localClusteringEnabled = Boolean(state.settings.localClusteringEnabled);
   const localTopics = localClusteringEnabled ? deriveLocalTopics(eligibleNodes, eligibleEdges) : [];
-  let topics = filterTopicsToEligiblePages(state.topics.length ? state.topics : localTopics, eligibleNodeIds);
+  let topics = filterTopicsToEligiblePages(state.topics.length ? state.topics : localTopics, eligibleNodeIds, state.nodes);
   const aiRefreshIntervalMs = Number(state.settings.aiRefreshIntervalMinutes || 10) * 60 * 1000;
 
   const canUseAi = state.settings.aiConsentGranted
@@ -326,8 +326,8 @@ async function runClustering({ forceAi = false } = {}) {
     topics = localTopics;
   }
 
-  topics = filterTopicsToEligiblePages(topics, eligibleNodeIds);
-  topics = applyTopicEdits(topics, state.topicEdits);
+  topics = filterTopicsToEligiblePages(topics, eligibleNodeIds, state.nodes);
+  topics = applyTopicEdits(topics, state.topicEdits, state.nodes);
 
   const nodesWithMembership = applyTopicMembership(state.nodes, topics);
   const edgesWithTopics = addSameTopicEdges(state.edges, topics);
@@ -465,8 +465,8 @@ function getTopicEligibleEdges(edges, eligibleNodeIds) {
   ));
 }
 
-function filterTopicsToEligiblePages(topics, eligibleNodeIds) {
-  return sanitizeTopics(topics, { allowedPageIds: eligibleNodeIds });
+function filterTopicsToEligiblePages(topics, eligibleNodeIds, nodes) {
+  return sanitizeTopics(topics, { allowedPageIds: eligibleNodeIds, nodes });
 }
 
 function applyTopicMembership(nodes, topics) {
@@ -518,7 +518,7 @@ function normalizeTopicEdits(topicEdits) {
   };
 }
 
-function applyTopicEdits(topics, topicEdits) {
+function applyTopicEdits(topics, topicEdits, nodes = {}) {
   const edits = normalizeTopicEdits(topicEdits);
   const deletedTopicIds = new Set(edits.deletedTopicIds);
 
@@ -529,7 +529,7 @@ function applyTopicEdits(topics, topicEdits) {
       return sanitizeTopics([{
         ...topic,
         pageIds: (topic.pageIds || []).filter((id) => !removedPageIds.has(id))
-      }])[0];
+      }], { nodes })[0];
     })
     .filter(Boolean);
 }
@@ -574,7 +574,7 @@ async function removePageFromTopic(topicId, pageId) {
     [topicId]: Array.from(removedPageIds)
   };
 
-  let topics = applyTopicEdits(state.topics, topicEdits);
+  let topics = applyTopicEdits(state.topics, topicEdits, state.nodes);
   if (!topics.some((item) => item.id === topicId)) {
     topicEdits.deletedTopicIds = Array.from(new Set([...topicEdits.deletedTopicIds, topicId]));
     topics = topics.filter((item) => item.id !== topicId);

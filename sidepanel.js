@@ -33,6 +33,8 @@ let pendingBlacklistPageId = "";
 let pendingRemovePageId = "";
 let expandedTopicId = "";
 let refreshMetaTimer = null;
+let isRefreshingTopics = false;
+const MIN_REFRESH_LOADING_MS = 700;
 
 document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
@@ -73,9 +75,14 @@ function bindEvents() {
   });
 
   elements.refreshButton.addEventListener("click", async () => {
-    setStatus("Refreshing topics...");
-    await sendMessage({ type: "RUN_CLUSTERING", forceAi: true });
-    await loadState();
+    if (isRefreshingTopics) {
+      return;
+    }
+    await runWithRefreshLoading(async () => {
+      setStatus("Refreshing topics...");
+      await sendMessage({ type: "RUN_CLUSTERING", forceAi: true });
+      await loadState();
+    });
   });
 
   elements.settingsButton.addEventListener("click", () => {
@@ -702,7 +709,7 @@ function renderPageGroup(title, pages, topicId, limit = Infinity) {
   `;
 }
 
-function renderPage(page) {
+function renderPage(page, topicId) {
   return `
     <article class="page-item" data-open-page-id="${escapeHtml(page.id)}" role="button" tabindex="0" aria-label="Open ${escapeHtml(page.title)}">
       <div class="page-header">
@@ -711,6 +718,7 @@ function renderPage(page) {
           <div class="page-title">${escapeHtml(page.title)}</div>
           <div class="page-domain">${escapeHtml(page.domain)}</div>
         </div>
+        <button class="page-remove-icon-button" type="button" data-remove-page-id="${escapeHtml(page.id)}" data-topic-id="${escapeHtml(topicId)}" aria-label="Remove page from topic" title="Remove from topic"><span aria-hidden="true"></span></button>
         <span class="external-link-icon" aria-hidden="true">↗</span>
       </div>
     </article>
@@ -741,6 +749,25 @@ async function handleTopicsListClick(event) {
   if (refreshButton) {
     event.stopPropagation();
     await sendMessage({ type: "RUN_CLUSTERING", forceAi: true });
+    await loadState();
+    return;
+  }
+
+  const removePageButton = target.closest("[data-remove-page-id]");
+  if (removePageButton) {
+    event.stopPropagation();
+    const topic = appState.topics.find((item) => item.id === removePageButton.dataset.topicId);
+    const page = appState.nodes[removePageButton.dataset.removePageId];
+    const result = await sendMessage({
+      type: "REMOVE_PAGE_FROM_TOPIC",
+      topicId: removePageButton.dataset.topicId,
+      pageId: removePageButton.dataset.removePageId
+    });
+    setStatus(result.ok
+      ? result.topicRemoved
+        ? `Removed page and deleted "${topic?.name || "topic"}" because it had fewer than 2 pages.`
+        : `Removed "${page?.title || "page"}" from "${topic?.name || "topic"}".`
+      : result.error);
     await loadState();
     return;
   }
@@ -858,6 +885,38 @@ function formatRelativeDay(timestamp) {
 
 function setStatus(message) {
   elements.statusPanel.textContent = message;
+}
+
+async function runWithRefreshLoading(task) {
+  setRefreshButtonLoading(true);
+  const startedAt = Date.now();
+  await waitForNextPaint();
+  try {
+    await task();
+  } finally {
+    const remainingMs = MIN_REFRESH_LOADING_MS - (Date.now() - startedAt);
+    if (remainingMs > 0) {
+      await delay(remainingMs);
+    }
+    setRefreshButtonLoading(false);
+  }
+}
+
+function setRefreshButtonLoading(isLoading) {
+  isRefreshingTopics = isLoading;
+  elements.refreshButton.disabled = isLoading;
+  elements.refreshButton.classList.toggle("is-loading", isLoading);
+  elements.refreshButton.setAttribute("aria-busy", String(isLoading));
+  elements.refreshButton.setAttribute("aria-label", isLoading ? "Refreshing topics" : "Refresh topics");
+  elements.refreshButton.title = isLoading ? "Refreshing topics" : "Refresh topics";
+}
+
+function waitForNextPaint() {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function sendMessage(message) {

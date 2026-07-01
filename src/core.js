@@ -535,7 +535,7 @@
         todoPageIds: topic.todoPageIds,
         updatedAt: 0,
         confidence: typeof topic.confidence === "number" ? Math.max(0, Math.min(1, topic.confidence)) : 0
-      }, { allowedPageIds: Object.keys(nodes || {}) });
+      }, { allowedPageIds: Object.keys(nodes || {}), nodes });
       normalizedTopic.updatedAt = normalizedTopic.pageIds.reduce((max, id) => Math.max(max, nodes[id]?.lastVisitTime || 0), 0) || Date.now();
       normalizedTopic.confidence = normalizedTopic.confidence || calculateTopicConfidence(normalizedTopic, nodes, []);
       return normalizedTopic;
@@ -552,7 +552,12 @@
     const allowedPageIds = options.allowedPageIds
       ? new Set(Array.from(options.allowedPageIds))
       : null;
-    const pageIds = uniquePageIds(topic?.pageIds, (id) => !allowedPageIds || allowedPageIds.has(id));
+    const nodes = options.nodes || {};
+    const pageIds = uniquePageIds(
+      topic?.pageIds,
+      (id) => !allowedPageIds || allowedPageIds.has(id),
+      (id) => normalizePageTitleKey(nodes[id]?.title)
+    );
     const pageIdSet = new Set(pageIds);
     const corePageIds = Array.isArray(topic?.corePageIds)
       ? uniquePageIds(topic.corePageIds, (id) => pageIdSet.has(id)).slice(0, 5)
@@ -570,15 +575,30 @@
     };
   }
 
-  function uniquePageIds(pageIds, isAllowed) {
+  function uniquePageIds(pageIds, isAllowed, getDuplicateKey = null) {
     const seen = new Set();
+    const seenDuplicateKeys = new Set();
     return (pageIds || []).filter((id) => {
       if (!id || seen.has(id) || !isAllowed(id)) {
         return false;
       }
+      const duplicateKey = getDuplicateKey ? getDuplicateKey(id) : "";
+      if (duplicateKey && seenDuplicateKeys.has(duplicateKey)) {
+        return false;
+      }
       seen.add(id);
+      if (duplicateKey) {
+        seenDuplicateKeys.add(duplicateKey);
+      }
       return true;
     });
+  }
+
+  function normalizePageTitleKey(title) {
+    return String(title || "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   function getExcludedAppCategory(url) {
